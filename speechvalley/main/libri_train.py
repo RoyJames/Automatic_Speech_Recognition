@@ -24,9 +24,9 @@ from speechvalley.models import DBiRNN, DeepSpeech2
 
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
-    
+ 
 flags.DEFINE_string('task', 'libri', 'set task name of this program')
-flags.DEFINE_string('train_dataset', 'train-clean-100', 'set the training dataset')
+flags.DEFINE_string('train_dataset', 'train-clean-360', 'set the training dataset')
 flags.DEFINE_string('dev_dataset', 'dev-clean', 'set the development dataset')
 flags.DEFINE_string('test_dataset', 'test-clean', 'set the test dataset')
 
@@ -43,14 +43,14 @@ flags.DEFINE_boolean('layerNormalization', False, 'set whether to apply layer no
 
 flags.DEFINE_integer('batch_size', 64, 'set the batch size')
 flags.DEFINE_integer('num_hidden', 256, 'set the hidden size of rnn cell')
-flags.DEFINE_integer('num_feature', 60, 'set the size of input feature')
+flags.DEFINE_integer('num_feature', 39, 'set the size of input feature')
 flags.DEFINE_integer('num_classes', 30, 'set the number of output classes')
 flags.DEFINE_integer('num_epochs', 1, 'set the number of epochs')
 flags.DEFINE_float('lr', 0.0001, 'set the learning rate')
 flags.DEFINE_float('dropout_prob', 0.1, 'set probability of dropout')
 flags.DEFINE_float('grad_clip', 1, 'set the threshold of gradient clipping, -1 denotes no clipping')
-flags.DEFINE_string('datadir', '/home/pony/github/data/libri', 'set the data root directory')
-flags.DEFINE_string('logdir', '/home/pony/github/log/libri', 'set the log directory')
+flags.DEFINE_string('datadir', '/playpen/zytang/LibriSpeech', 'set the data root directory')
+flags.DEFINE_string('logdir', '/playpen/zytang/LibriSpeech', 'set the log directory')
 
 
 FLAGS = flags.FLAGS
@@ -167,6 +167,7 @@ class Runner(object):
             model.config['all params'] = all_num_params
             print(model.config)
             with tf.Session(graph=model.graph) as sess:
+                sess.run(model.initial_op)
                 # restore from stored model
                 if keep == True:
                     ckpt = tf.train.get_checkpoint_state(savedir)
@@ -176,7 +177,6 @@ class Runner(object):
                 else:
                     print('Initializing')
                     sess.run(model.initial_op)
-
                 for epoch in range(num_epochs):
                     ## training
                     start = time.time()

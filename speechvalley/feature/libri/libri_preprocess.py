@@ -16,6 +16,57 @@ import scipy.io.wavfile as wav
 from sklearn import preprocessing
 from subprocess import check_call, CalledProcessError
 from speechvalley.feature.core import calcfeat_delta_delta
+from time import time
+from multiprocessing import Pool
+
+
+
+def extract_features(fullFilename, filenameNoSuffix, win_len, win_step, mode, feature_len, save, label_dir, feat_dir):
+    try:
+        rate = None
+        sig = None
+        try:
+            (rate, sig) = wav.read(fullFilename)
+        except ValueError as e:
+            if e.message == "File format 'NIST'... not understood.":
+                sf = Sndfile(fullFilename, 'r')
+            nframes = sf.nframes
+            sig = sf.read_frames(nframes)
+            rate = sf.samplerate
+        feat = calcfeat_delta_delta(sig, rate, win_length=win_len, win_step=win_step, mode=mode,
+                                    feature_len=feature_len)
+        feat = preprocessing.scale(feat)
+        feat = np.transpose(feat)
+        print(feat.shape)
+        labelFilename = filenameNoSuffix + '.label'
+        with open(labelFilename, 'r') as f:
+            characters = f.readline().strip().lower()
+        targets = []
+        if seq2seq is True:
+            targets.append(28)
+        for c in characters:
+            if c == ' ':
+                targets.append(0)
+            elif c == "'":
+                targets.append(27)
+            else:
+                targets.append(ord(c) - 96)
+        if seq2seq is True:
+            targets.append(29)
+        print(targets)
+        if save:
+            if not os.path.isdir(label_dir):
+                os.makedirs(label_dir)
+            if not os.path.isdir(feat_dir):
+                os.makedirs(feat_dir)
+            featureFilename = os.path.join(feat_dir, filenameNoSuffix.split('/')[-1] + '.npy')
+            np.save(featureFilename, feat)
+            t_f = os.path.join(label_dir, filenameNoSuffix.split('/')[-1] + '.npy')
+            print(t_f)
+            np.save(t_f, targets)
+    except Exception as e:
+        raise Exception(e.message)
+
 
 def preprocess(root_directory):
     """
@@ -46,72 +97,48 @@ def preprocess(root_directory):
                         sub_c = sub_c.lower()
                         with open(subfile, 'w') as sp:
                             sp.write(sub_c)
-            elif f.endswith('.wav'):
-                if not os.path.isfile(os.path.splitext(filename)[0] +
-                                      '.label'):
-                    raise ValueError(".label file not found for {}".format(filename))
             else:
                 pass
 
 
-def wav2feature(root_directory, save_directory, name, win_len, win_step, mode, feature_len, seq2seq, save):
+def wav2feature(root_directory, save_directory, name, win_len, win_step, mode, feature_len, seq2seq, save, nthreads):
     count = 0
     dirid = 0
     level = 'cha' if seq2seq is False else 'seq2seq'
     data_dir = os.path.join(root_directory, name)
     preprocess(data_dir)
-    for subdir, dirs, files in os.walk(data_dir):
-        for f in files:
-            fullFilename = os.path.join(subdir, f)
-            filenameNoSuffix =  os.path.splitext(fullFilename)[0]
-            if f.endswith('.wav'):
-                rate = None
-                sig = None
-                try:
-                    (rate,sig)= wav.read(fullFilename)
-                except ValueError as e:
-                    if e.message == "File format 'NIST'... not understood.":
-                        sf = Sndfile(fullFilename, 'r')
-                    nframes = sf.nframes
-                    sig = sf.read_frames(nframes)
-                    rate = sf.samplerate
-                feat = calcfeat_delta_delta(sig,rate,win_length=win_len,win_step=win_step,mode=mode,feature_len=feature_len)
-                feat = preprocessing.scale(feat)
-                feat = np.transpose(feat)
-                print(feat.shape)
-                labelFilename = filenameNoSuffix + '.label'
-                with open(labelFilename,'r') as f:
-                    characters = f.readline().strip().lower()
-                targets = []
-                if seq2seq is True:
-                    targets.append(28)
-                for c in characters:
-                    if c == ' ':
-                        targets.append(0)
-                    elif c == "'":
-                        targets.append(27)
-                    else:
-                        targets.append(ord(c)-96)
-                if seq2seq is True:
-                    targets.append(29)
-                print(targets)
-                if save:
-                    count+=1
-                    if count%4000 == 0:
-                        dirid += 1
-                    print('file index:',count)
-                    print('dir index:',dirid)
-                    label_dir = os.path.join(save_directory, level, name, str(dirid), 'label')
-                    feat_dir = os.path.join(save_directory, level, name, str(dirid), 'feature')
-                    if not os.path.isdir(label_dir):
-                        os.makedirs(label_dir)
-                    if not os.path.isdir(feat_dir):
-                        os.makedirs(feat_dir)
-                    featureFilename = os.path.join(feat_dir, filenameNoSuffix.split('/')[-1] +'.npy')
-                    np.save(featureFilename,feat)
-                    t_f = os.path.join(label_dir, filenameNoSuffix.split('/')[-1] +'.npy')
-                    print(t_f)
-                    np.save(t_f,targets)
+
+    try:
+        # # Create a pool to communicate with the worker threads
+        pool = Pool(processes=nthreads)
+
+        ts = time()
+        for subdir, dirs, files in os.walk(data_dir):
+            for f in files:
+                fullFilename = os.path.join(subdir, f)
+                filenameNoSuffix =  os.path.splitext(fullFilename)[0]
+                if f.endswith('.wav'):
+                    if not os.path.isfile(os.path.splitext(fullFilename)[0] +
+                                          '.label'):
+                        raise ValueError(".label file not found for {}".format(fullFilename))
+                    label_dir = []
+                    feat_dir = []
+                    if save:
+                        count += 1
+                        if count % 4000 == 0:
+                            dirid += 1
+                        print('file index:', count)
+                        print('dir index:', dirid)
+                        label_dir = os.path.join(save_directory, level, name, str(dirid), 'label')
+                        feat_dir = os.path.join(save_directory, level, name, str(dirid), 'feature')
+                    pool.apply_async(extract_features, args=(fullFilename, filenameNoSuffix, win_len, win_step, mode, feature_len, save, label_dir, feat_dir))
+    except Exception as e:
+        pool.close()
+    pool.close()
+    pool.join()
+    print('Took {}'.format(time() - ts))
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='libri_preprocess',
@@ -121,9 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("save", help="Directory where preprocessed arrays are to be saved",
                         type=str)
     parser.add_argument("-n", "--name", help="Name of the dataset",
-                        choices=['dev-clean', 'dev-other', 'test-clean',
-                                 'test-other', 'train-clean-100', 'train-clean-360',
-                                 'train-other-500'], type=str, default='dev-clean')
+                        type=str, default='dev-clean')
 
     parser.add_argument("-m", "--mode", help="Mode",
                         choices=['mfcc', 'fbank'],
@@ -138,6 +163,9 @@ if __name__ == "__main__":
     parser.add_argument("-ws", "--winstep", type=float,
                         default=0.01, help="specify the window step length of feature")
 
+    parser.add_argument("-nt", "--nthreads", type=int,
+                        default=4, help="specify the number of threads to use for extracting features")
+
     args = parser.parse_args()
     root_directory = args.path
     save_directory = args.save
@@ -147,6 +175,7 @@ if __name__ == "__main__":
     name = args.name
     win_len = args.winlen
     win_step = args.winstep
+    nthreads = args.nthreads
 
     if root_directory == '.':
         root_directory = os.getcwd()
@@ -161,4 +190,4 @@ if __name__ == "__main__":
         os.makedirs(save_directory)
 
     wav2feature(root_directory, save_directory, name=name, win_len=win_len, win_step=win_step,
-                mode=mode, feature_len=feature_len, seq2seq=seq2seq, save=True)
+                mode=mode, feature_len=feature_len, seq2seq=seq2seq, save=True, nthreads=nthreads)

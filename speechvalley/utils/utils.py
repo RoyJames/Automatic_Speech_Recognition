@@ -48,14 +48,14 @@ def output_to_sequence(lmt, type='phn'):
     ''' convert the output into sequences of characters or phonemes
     '''
     phn = ['aa', 'ae', 'ah', 'ao', 'aw', 'ax', 'ax-h',
-       'axr', 'ay', 'b', 'bcl', 'ch', 'd', 'dcl',
-       'dh', 'dx', 'eh', 'el', 'em', 'en', 'eng',
-       'epi', 'er', 'ey', 'f', 'g', 'gcl', 'h#',
-       'hh', 'hv', 'ih', 'ix', 'iy', 'jh', 'k',
-       'kcl', 'l', 'm', 'n', 'ng', 'nx', 'ow',
-       'oy', 'p', 'pau', 'pcl', 'q', 'r', 's',
-       'sh', 't', 'tcl', 'th', 'uh', 'uw', 'ux',
-       'v', 'w', 'y', 'z', 'zh']
+	'axr', 'ay', 'b', 'bcl', 'ch', 'd', 'dcl',
+        'dh', 'dx', 'eh', 'el', 'em', 'en', 'eng',
+        'epi', 'er', 'ey', 'f', 'g', 'gcl', 'h#',
+        'hh', 'hv', 'ih', 'ix', 'iy', 'jh', 'k',
+        'kcl', 'l', 'm', 'n', 'ng', 'nx', 'ow',
+        'oy', 'p', 'pau', 'pcl', 'q', 'r', 's',
+        'sh', 't', 'tcl', 'th', 'uh', 'uw', 'ux',
+        'v', 'w', 'y', 'z', 'zh']
     sequences = []
     start = 0
     sequences.append([])
